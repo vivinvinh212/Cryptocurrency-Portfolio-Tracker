@@ -19,7 +19,6 @@ async function createTable() {
     )
   `);
   stmt.run();
-  console.log("Table created or already exists");
 }
 
 // Bulk insert transactions
@@ -34,7 +33,7 @@ async function bulkInsertTransactions(transactions) {
     }
   });
   insertMany(transactions);
-  console.log(`Bulk inserted ${transactions.length} transactions.`);
+  // console.log(`Bulk inserted ${transactions.length} transactions.`);
 }
 
 // Read the CSV file and insert its contents into the database
@@ -71,9 +70,9 @@ async function readCsv(filePath) {
     rowCount++;
 
     // Log progress after every 1,000,000 rows
-    if (rowCount % 1000000 === 0) {
-      console.log(`Processed ${rowCount} rows.`);
-    }
+    // if (rowCount % 1000000 === 0) {
+    //   console.log(`Processed ${rowCount} rows.`);
+    // }
   });
 
   return new Promise((resolve, reject) => {
@@ -82,7 +81,9 @@ async function readCsv(filePath) {
       if (transactions.length > 0) {
         bulkInsertTransactions(transactions);
       }
-      console.log(`Finish create database. Total rows processed: ${rowCount}`);
+      console.log(
+        `Finish create database. Total transactions count: ${rowCount}`
+      );
       resolve();
     });
 
@@ -138,11 +139,29 @@ function checkValidToken(token) {
 
 // Parse command line arguments and call the appropriate function
 async function main() {
+  console.log("\n----Welcome to crypto tracker service!----\n");
+  console.log("Loading...");
+
   const startTime = Date.now(); // Record the start time
   await createTable();
-  await readCsv("./Book1.csv");
+  await readCsv("./transactions.csv");
   const elapsedTime = Date.now() - startTime; // Calculate the elapsed time
   console.log(`Total time taken: ${elapsedTime} ms`);
+  console.log(
+    `Tokens found in the portfolio: ${[...validTokens].join(", ")}\n`
+  );
+
+  console.log("Usage:");
+  console.log("  <null>: return the latest portfolio value per token in USD");
+  console.log(
+    "  <Token>: return the latest portfolio value for that token in USD (Example: ETH)"
+  );
+  console.log(
+    "  <Date>: return the portfolio value per token in USD on that date (format: YYYY-MM-DD) (Example: 2020-10-10)"
+  );
+  console.log(
+    "  <Date> <Token>: return the portfolio value of that token in USD on that date (format: YYYY-MM-DD token) (Example: 2020-10-10 ETH)\n"
+  );
 
   const rl = createInterface({
     input: process.stdin,
@@ -150,9 +169,10 @@ async function main() {
   });
 
   async function prompt() {
-    rl.question('Enter command or type "quit" to exit: ', async (input) => {
+    rl.question('Enter command or type "quit" to exit: \n', async (input) => {
       if (input.toLowerCase() === "quit") {
         rl.close();
+        console.log("\n----Thank you for using the service!----");
         return;
       }
 
