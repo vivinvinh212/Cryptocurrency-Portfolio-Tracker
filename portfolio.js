@@ -194,7 +194,7 @@ async function main() {
   await readCsv("./transactions.csv");
 
   const elapsedTime = Date.now() - startTime; // Calculate the elapsed time
-  console.log(`Total time taken: ${elapsedTime} ms`);
+  console.log(`Total time taken: ${elapsedTime / 1000} seconds`);
   console.log(
     `Tokens found in the portfolio: ${[...validTokens].join(", ")}\n`
   );
