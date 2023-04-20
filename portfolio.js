@@ -2,61 +2,39 @@ const fs = require("fs");
 const readline = require("readline");
 const { createInterface } = require("readline");
 const axios = require("axios");
-const sqlite3 = require("sqlite3").verbose();
+const sqlite3 = require("better-sqlite3");
 
 const API_URL = "https://min-api.cryptocompare.com/data/price";
 const validTokens = new Set();
-const db = new sqlite3.Database(":memory:");
+const db = new sqlite3(":memory:");
 
-/// Create a table for transactions if it doesn't exist
 // Create a table for transactions if it doesn't exist
 async function createTable() {
-  return new Promise((resolve, reject) => {
-    db.run(
-      `CREATE TABLE IF NOT EXISTS transactions (
-          timestamp INTEGER,
-          type TEXT,
-          token TEXT,
-          amount REAL
-        )`,
-      (error) => {
-        if (error) {
-          console.error("Error creating table:", error.message);
-          reject(error);
-        } else {
-          console.log("Table created or already exists");
-          resolve();
-        }
-      }
-    );
-  });
+  const stmt = db.prepare(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      timestamp INTEGER,
+      type TEXT,
+      token TEXT,
+      amount REAL
+    )
+  `);
+  stmt.run();
+  console.log("Table created or already exists");
 }
 
+// Bulk insert transactions
 async function bulkInsertTransactions(transactions) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare(
-      `INSERT INTO transactions (timestamp, type, token, amount) VALUES (?, ?, ?, ?)`
-    );
-    db.exec("BEGIN");
-    transactions.forEach(([timestamp, transactionType, token, amount]) => {
-      validTokens.add(token);
-      stmt.run([timestamp, transactionType, token, amount], (error) => {
-        if (error) {
-          console.error(error.message);
-        }
-      });
-    });
-    db.exec("COMMIT", (error) => {
-      stmt.finalize();
-      if (error) {
-        console.error(error.message);
-        reject(error);
-      } else {
-        console.log(`Bulk inserted ${transactions.length} transactions.`);
-        resolve();
-      }
-    });
+  const insertStmt = db.prepare(`
+    INSERT INTO transactions (timestamp, type, token, amount) VALUES (?, ?, ?, ?)
+  `);
+  const insertMany = db.transaction((transactions) => {
+    for (const transaction of transactions) {
+      validTokens.add(transaction[2]);
+      insertStmt.run(transaction);
+    }
   });
+  insertMany(transactions);
+  console.log(`Bulk inserted ${transactions.length} transactions.`);
 }
 
 // Read the CSV file and insert its contents into the database
@@ -84,14 +62,10 @@ async function readCsv(filePath) {
 
     const [timestamp, transactionType, token, amount] = line.split(",");
     transactions.push([timestamp, transactionType, token, amount]);
+
     if (transactions.length >= BATCH_SIZE) {
-      bulkInsertTransactions(transactions)
-        .then(() => {
-          transactions = []; // Reset the transactions array
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+      bulkInsertTransactions(transactions);
+      transactions = []; // Reset the transactions array
     }
 
     rowCount++;
@@ -124,7 +98,7 @@ async function calculateTokenPortfolioValue(token) {
 }
 
 async function calculatePortfolioValue(date, token = null) {
-  const tokensToFetch = token ? [token] : await getDistinctTokens();
+  const tokensToFetch = token ? [token] : [...validTokens];
   for (const currentToken of tokensToFetch) {
     const balance = await getBalance(currentToken, date);
     const exchangeRate = await getExchangeRate(currentToken);
@@ -137,34 +111,14 @@ async function calculatePortfolioValue(date, token = null) {
   }
 }
 
-async function getDistinctTokens() {
-  return new Promise((resolve, reject) => {
-    db.all("SELECT DISTINCT token FROM transactions", (error, rows) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(rows.map((row) => row.token));
-    });
-  });
-}
-
 async function getBalance(token, endDate) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      `SELECT SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE -amount END) as balance
-         FROM transactions
-         WHERE token = ? AND timestamp <= ?`,
-      [token, endDate],
-      (error, row) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(row.balance || 0);
-      }
-    );
-  });
+  const stmt = db.prepare(`
+    SELECT SUM(CASE WHEN type = 'DEPOSIT' THEN amount ELSE -amount END) as balance
+    FROM transactions
+    WHERE token = ? AND timestamp <= ?
+  `);
+  const row = stmt.get(token, endDate);
+  return row.balance || 0;
 }
 
 async function getExchangeRate(token) {
@@ -177,11 +131,9 @@ async function getExchangeRate(token) {
 
   return response.data.USD;
 }
+
 function checkValidToken(token) {
-  if (validTokens.has(token)) {
-    return true;
-  }
-  return false;
+  return validTokens.has(token);
 }
 
 // Parse command line arguments and call the appropriate function
