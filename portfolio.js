@@ -8,15 +8,56 @@ const API_URL = "https://min-api.cryptocompare.com/data/price";
 const validTokens = new Set();
 const db = new sqlite3.Database(":memory:");
 
+/// Create a table for transactions if it doesn't exist
 // Create a table for transactions if it doesn't exist
-db.run(
-  `CREATE TABLE IF NOT EXISTS transactions (
-    timestamp INTEGER,
-    type TEXT,
-    token TEXT,
-    amount REAL
-  )`
-);
+async function createTable() {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `CREATE TABLE IF NOT EXISTS transactions (
+          timestamp INTEGER,
+          type TEXT,
+          token TEXT,
+          amount REAL
+        )`,
+      (error) => {
+        if (error) {
+          console.error("Error creating table:", error.message);
+          reject(error);
+        } else {
+          console.log("Table created or already exists");
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+async function bulkInsertTransactions(transactions) {
+  return new Promise((resolve, reject) => {
+    const stmt = db.prepare(
+      `INSERT INTO transactions (timestamp, type, token, amount) VALUES (?, ?, ?, ?)`
+    );
+    db.exec("BEGIN");
+    transactions.forEach(([timestamp, transactionType, token, amount]) => {
+      validTokens.add(token);
+      stmt.run([timestamp, transactionType, token, amount], (error) => {
+        if (error) {
+          console.error(error.message);
+        }
+      });
+    });
+    db.exec("COMMIT", (error) => {
+      stmt.finalize();
+      if (error) {
+        console.error(error.message);
+        reject(error);
+      } else {
+        console.log(`Bulk inserted ${transactions.length} transactions.`);
+        resolve();
+      }
+    });
+  });
+}
 
 // Read the CSV file and insert its contents into the database
 async function readCsv(filePath) {
@@ -25,10 +66,15 @@ async function readCsv(filePath) {
   const rl = readline.createInterface({
     input: fileStream,
     crlfDelay: Infinity,
+    highWaterMark: 256 * 1024, // Increase the read buffer size
   });
 
   let isFirstLine = true; // Track if the line being parsed is the first line
-  let currentBatch = 0;
+  let rowCount = 0; // Initialize row counter
+
+  const BATCH_SIZE = 100000; // Set the batch size for bulk insert
+
+  let transactions = []; // Initialize the array for holding the transactions
 
   rl.on("line", (line) => {
     if (isFirstLine) {
@@ -37,63 +83,37 @@ async function readCsv(filePath) {
     }
 
     const [timestamp, transactionType, token, amount] = line.split(",");
-    db.run(
-      `INSERT INTO transactions (timestamp, type, token, amount) VALUES (?, ?, ?, ?)`,
-      [timestamp, transactionType, token, amount],
-      (error) => {
-        if (error) {
-          console.error(error.message);
-        }
-      }
-    );
-
-    // Commit the transaction after every 100000 inserts
-    currentBatch++;
-    if (currentBatch === 100000) {
-      db.exec("COMMIT", (error) => {
-        if (error) {
-          console.error(error.message);
-        } else {
-          console.log("Transaction completed.");
-        }
-      });
-      db.exec("BEGIN");
-      currentBatch = 0;
+    transactions.push([timestamp, transactionType, token, amount]);
+    if (transactions.length >= BATCH_SIZE) {
+      bulkInsertTransactions(transactions)
+        .then(() => {
+          transactions = []; // Reset the transactions array
+        })
+        .catch((error) => {
+          console.error(error);
+        });
     }
-    validTokens.add(token);
+
+    rowCount++;
+
+    // Log progress after every 1,000,000 rows
+    if (rowCount % 1000000 === 0) {
+      console.log(`Processed ${rowCount} rows.`);
+    }
   });
 
   return new Promise((resolve, reject) => {
     rl.on("close", () => {
-      // Commit the final transaction
-      db.exec("COMMIT", (error) => {
-        if (error) {
-          console.error(error.message);
-          reject(error);
-        } else {
-          console.log("Finish create database");
-          resolve();
-        }
-      });
+      // Insert any remaining transactions
+      if (transactions.length > 0) {
+        bulkInsertTransactions(transactions);
+      }
+      console.log(`Finish create database. Total rows processed: ${rowCount}`);
+      resolve();
     });
 
     rl.on("error", (error) => {
       reject(error);
-    });
-  });
-}
-
-async function getEarliestTimestamp() {
-  const sql = `SELECT MIN(timestamp) as earliestTimestamp FROM transactions`;
-
-  return new Promise((resolve, reject) => {
-    db.get(sql, (error, row) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve(row.earliestTimestamp);
     });
   });
 }
@@ -166,9 +186,13 @@ function checkValidToken(token) {
 
 // Parse command line arguments and call the appropriate function
 async function main() {
-  await readCsv("./transactions.csv");
+  const startTime = Date.now(); // Record the start time
+  await createTable();
+  await readCsv("./Book1.csv");
+  const elapsedTime = Date.now() - startTime; // Calculate the elapsed time
+  console.log(`Total time taken: ${elapsedTime} ms`);
 
-  const rl = readline.createInterface({
+  const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   });
