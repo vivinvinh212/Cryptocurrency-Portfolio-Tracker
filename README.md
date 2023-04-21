@@ -27,7 +27,7 @@ The program supports four different operations:
 
 
 ## Design decisions
-1. In-memory SQLite database: The transactions data is read from a CSV file and loaded into an in-memory SQLite database. This is a light-weight, simple and efficient way to perform queries on the data, without the need for a separate database server. Note that this SQLite database was initialized from better-sqlite3 library. This library allows much more performant and efficient read/write transactions into the database compared to node-sqlite3/sqlite3 library.
+1. In-memory SQLite database: The transactions data is read from a CSV file and loaded into an in-memory SQLite database. This is a light-weight, simple and efficient way to perform queries on the data, without the need for a separate database server. Note that this SQLite database was initialized from [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) library. This library allows much more performant and efficient read/write transactions into the database compared to node-sqlite3 library.
 
 2. Stream-based CSV reading: The application reads the CSV file line by line using the Node.js 'readline' module, allowing it to handle very large CSV files without running out of memory. This readline stream then is passed to prepared statements for database insertion.
 
@@ -53,6 +53,17 @@ The program supports four different operations:
   
 - Create ready-to-use database for 30 million records takes ~ 94 seconds (1,6 minute)
   ![image](https://user-images.githubusercontent.com/83176944/233567830-3d5da967-1abe-451b-9dd7-94643a0268bc.png)
+  
+## Possible technical design considerations
+
+- Database choice: At first I tried to implement the solution without a database and it quickly crash the program due to out of memory. Hence a database is needed along with a stream reading to avoid memory overload. better-sqlite3 is the choice as it inherits the light-weight, easy setup and performance of sqlite3, but proves to be much more performant in reading/writing than sqlite3. If the need is to store the transactions.csv for a long time, or the file could scale much bigger, there maybe need to migrate to a full-fledged database: MySQL, PostgreSQL, etc.
+
+- Store data to disk/.db file instead of in-memory database (more persistent and less demanding on memory, but takes longer to write/read and not suitable for database with short life-time need). May need to store in disk given the extended storage time beyond program execution or bigger file size.
+
+- Alternatives for reading data stream from csv file: PapaParse, fast-csv, csv-parse, csv-parser. Though via local testing, I found not much different in the tools, suggesting the main bottle neck is the bulk insert of transactions to the database.
+
+- Batch size of bulk insert transaction: Via experiment, I find the sweet spot of 100000 which allow not to high number of transactions overall, but also not too much insert in 1 transaction, both of which damage the performance of the database. There may be a more suitable number for specfic needs.
+
 
   
 
