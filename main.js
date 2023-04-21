@@ -6,9 +6,11 @@ const {
 const sqlite3 = require("better-sqlite3");
 const readline = require("readline");
 
-const db = new sqlite3(":memory:");
-
 async function main() {
+  // Intialize in-memory better-sqlite3 db
+  const db = new sqlite3(":memory:");
+  // db.pragma("journal_mode = WAL");
+
   console.log("\n----Welcome to crypto tracker service!----\n");
   console.log("Loading...");
 
