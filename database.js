@@ -120,4 +120,5 @@ module.exports = {
   readCsv,
   createTable,
   getBalance,
+  bulkInsertTransactions,
 };
