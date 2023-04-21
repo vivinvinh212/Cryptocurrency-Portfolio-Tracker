@@ -24,6 +24,7 @@ The program supports four different operations:
   
 ## Program architecture design/flow
   
+  ![Untitled Diagram drawio (1)](https://user-images.githubusercontent.com/83176944/233637174-69896f92-db47-49e4-865c-16095b88f171.png)
 
 
 ## Design decisions
