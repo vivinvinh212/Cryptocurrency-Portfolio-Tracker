@@ -1,33 +1,45 @@
 # Cryptocurrency-Portfolio-Tracker
+
 ## Description
 
-This is a command-line program for tracking the portfolio value of a cryptocurrency investor. The program reads transactions from a CSV file and uses the CryptoCompare API to calculate the portfolio value for each token in USD. 
+This is a command-line program for tracking the portfolio value of a cryptocurrency investor. The program reads transactions from a CSV file and uses the CryptoCompare API to calculate the portfolio value for each token in USD.
 
 The program is implemented in Node.js, designed to be a useful tool for tracking cryptocurrency investments and making informed financial decisions.
 
 ## Usage
+
 ### Installation
+
 `git clone https://github.com/vivinvinh212/Cryptocurrency-Portfolio-Tracker`
+
 ### Install necessary library
+
 `npm i`
+
 ### Run program
-`node ./main.js`
+
+`npm start`
+
+### Run basic testings
+
+`npm test`
 
 ### Command options
+
 The program supports four different operations:
 
 <null>: return the latest portfolio value per token in USD"
 <Token>: return the latest portfolio value for that token in USD (Example: ETH)
 <Date>: return the portfolio value per token in USD on that date (format: YYYY-MM-DD) (Example: 2020-10-10)
 <Date> <Token>: return the portfolio value of that token in USD on that date (format: YYYY-MM-DD token) (Example: 2020-10-10 ETH)
-  ![image](https://user-images.githubusercontent.com/83176944/233566500-e658ea68-3768-400a-b66a-20c74ac27104.png)
-  
-## Program architecture design/flow
-  
-  ![Untitled Diagram drawio (1)](https://user-images.githubusercontent.com/83176944/233637174-69896f92-db47-49e4-865c-16095b88f171.png)
+![image](https://user-images.githubusercontent.com/83176944/233566500-e658ea68-3768-400a-b66a-20c74ac27104.png)
 
+## Program architecture design/flow
+
+![Untitled Diagram drawio (1)](https://user-images.githubusercontent.com/83176944/233637174-69896f92-db47-49e4-865c-16095b88f171.png)
 
 ## Design decisions
+
 1. In-memory SQLite database: The transactions data is read from a CSV file and loaded into an in-memory SQLite database. This is a light-weight, simple and efficient way to perform queries on the data, without the need for a separate database server. Note that this SQLite database was initialized from [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) library. This library allows much more performant and efficient read/write transactions into the database compared to node-sqlite3 library.
 
 2. Stream-based CSV reading: The application reads the CSV file line by line using the Node.js 'readline' module, allowing it to handle very large CSV files without running out of memory. This readline stream then is passed to prepared statements for database insertion.
@@ -49,12 +61,11 @@ The program supports four different operations:
 10. Performance optimization: The highWaterMark option is set when creating the readline interface to increase the read buffer size, potentially speeding up the streaming progress. However, a comment cautions against setting this value too high, as it may cause the program to run out of memory. This demonstrates careful consideration of performance trade-offs.
 
 ## Performance
-  
+
 - Create ready-to-use database for 3400 records takes ~ 0.034 seconds
-  
 - Create ready-to-use database for 30 million records takes ~ 94 seconds (1,6 minute)
   ![image](https://user-images.githubusercontent.com/83176944/233567830-3d5da967-1abe-451b-9dd7-94643a0268bc.png)
-  
+
 ## Possible technical design considerations
 
 - Database choice: At first I tried to implement the solution without a database and it quickly crash the program due to out of memory. Hence a database is needed along with a stream reading to avoid memory overload. better-sqlite3 is the choice as it inherits the light-weight, easy setup and performance of sqlite3, but proves to be much more performant in reading/writing than sqlite3. If the need is to store the transactions.csv for a long time, or the file could scale much bigger, there maybe need to migrate to a full-fledged database: MySQL, PostgreSQL, etc.
@@ -64,7 +75,3 @@ The program supports four different operations:
 - Alternatives for reading data stream from csv file: PapaParse, fast-csv, csv-parse, csv-parser. Though via local testing, I found not much different in the tools, suggesting the main bottle neck is the bulk insert of transactions to the database.
 
 - Batch size of bulk insert transaction: Via experiment, I find the sweet spot of 100000 which allow not to high number of transactions overall, but also not too much insert in 1 transaction, both of which damage the performance of the database. There may be a more suitable number for specfic needs.
-
-
-  
-
